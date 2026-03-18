@@ -33,17 +33,6 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM Generate authentication token
-echo.
-echo Generating authentication token...
-call mvn exec:java -Dexec.mainClass="com.example.util.TokenManager" -q
-if %ERRORLEVEL% NEQ 0 (
-    echo Token generation failed!
-    cd ..
-    pause
-    exit /b 1
-)
-echo.
 
 REM Check if WAR file exists
 if not exist target\*.war (
