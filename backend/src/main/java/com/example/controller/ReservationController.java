@@ -8,6 +8,7 @@ import java.util.Map;
 import com.example.model.Hotel;
 import com.example.model.ReservationListItem;
 import com.example.service.ReservationService;
+import com.example.service.TokenService;
 import com.myframework.annotations.Controller;
 import com.myframework.annotations.GetMapping;
 import com.myframework.annotations.Json;
@@ -19,9 +20,11 @@ import com.myframework.core.ModelView;
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final TokenService tokenService;
 
     public ReservationController() {
         this.reservationService = new ReservationService();
+        this.tokenService = new TokenService();
     }
 
     @GetMapping("/")
@@ -41,8 +44,10 @@ public class ReservationController {
     @Json
     @GetMapping("/api/reservations")
     public List<ReservationListItem> listReservations(
+            @RequestParam("token") String token,
             @RequestParam("dateDebut") String dateDebut,
             @RequestParam("dateFin") String dateFin) throws SQLException {
+        tokenService.verifyAccessToken(token);
         return reservationService.getReservations(dateDebut, dateFin);
     }
 
