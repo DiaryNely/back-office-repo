@@ -1,0 +1,104 @@
+TL : ETU003142
+
+Dev :
+- ETU003367 (BACK-OFFICE)
+- ETU003123 (FRONT-OFFICE)
+
+
+ORGANISATION DES BRANCHES
+========================
+
+BackOffice
+----------
+back/feature/creation-reservation        (ETU003367)
+back/feature/endpoint-reservations       (ETU003367)
+back/feature/recherche-par-periode       (ETU003123)
+back/fix/validation-formulaire           (ETU003367)
+back/script/seed-hotels                  (ETU003123)
+
+
+FrontOffice
+-----------
+front/feature/affichage-reservations     (ETU003367)
+front/feature/recherche-date             (ETU003123)
+front/ui/ameliore-table-reservation      (ETU003367)
+
+
+Commun / Config
+---------------
+config/db/migration-reservation          (ETU003367)
+config/db/migration-hotel                (ETU003123)
+
+
+SPRINT 1 – BASE DE DONNEES
+=========================
+
+Creation des tables
+
+Table CLIENT
+------------
+id_client (PK)
+nom
+email
+
+
+Table HOTEL
+-----------
+id_hotel (PK)
+nom
+ville
+
+
+Table RESERVATION
+-----------------
+id_reservation (PK)
+id_client (FK)
+id_hotel (FK)
+nb_personnes
+date_arrivee
+date_depart
+heure_arrivee
+
+
+SPRINT 2 – FONCTIONNALITES
+=========================
+
+BackOffice
+----------
+- CRUD reservation
+- Endpoint liste des reservations
+- Filtrage par intervalle de dates
+- Script d'initialisation des hotels
+
+
+FrontOffice
+-----------
+- Affichage des reservations
+- Recherche par date
+- Amelioration UI tableau
+
+
+SPRINT 2
+-vehicule 
+id, reference, nombre de places, type_carburant(D, E, H, EL(elec)) Diesel, Essence, Hybride
+
+pas de FrontOffice
+
+
+
+Créer CRUD , bouton ajouter
+-protection appel d'api:
+
+création table TOKEN , 
+id, token(générer), date expiration , heure d'expiration
+
+créer main pour remplir la table token (pas d'interface)
+
+
+ajouter le token dans query pour la requete
+
+verif expiration et existence du token 
+
+FrontOffice : stocke lo token , mettre dans url 
+
+BackOffice: dans reservation: verif expiration et existence du token 
