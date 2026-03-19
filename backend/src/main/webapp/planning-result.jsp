@@ -168,7 +168,7 @@
                     <p class="meta">
                         Route: <strong><%= tour.getRoute() %></strong><br>
                         Départ: <strong><%= tour.getHeureDepart() != null ? dtf.format(tour.getHeureDepart()) : "-" %></strong> |
-                        Retour: <strong><%= tour.getHeureRetour() != null ? dtf.format(tour.getHeureRetour()) : "-" %></strong> |
+                        Arrivée aéroport: <strong><%= tour.getHeureRetour() != null ? dtf.format(tour.getHeureRetour()) : "-" %></strong> |
                         Distance: <strong><%= tour.getDistanceTotaleKm() %> km</strong> |
                         Durée: <strong><%= tour.getDureeTotaleMinutes() %> min</strong>
                     </p>
@@ -177,8 +177,10 @@
                         <thead>
                         <tr>
                             <th>Réservation</th>
+                            <th>Vol</th>
                             <th>Client</th>
                             <th>Passagers</th>
+                            <th>Ordre passage</th>
                             <th>Heure arrivée</th>
                             <th>Lieu</th>
                         </tr>
@@ -187,8 +189,10 @@
                         <% for (PlanningReservation reservation : tour.getReservations()) { %>
                             <tr>
                                 <td>#<%= reservation.getId() %></td>
+                                <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                                 <td><%= reservation.getClientId() %></td>
                                 <td><%= reservation.getNombrePassager() %></td>
+                                <td><%= reservation.getOrdrePassage() != null ? reservation.getOrdrePassage() : "-" %></td>
                                 <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
                                 <td><%= reservation.getLieuCode() %> - <%= reservation.getLieuLibelle() %></td>
                             </tr>
@@ -208,6 +212,7 @@
                 <thead>
                 <tr>
                     <th>Réservation</th>
+                    <th>Vol</th>
                     <th>Client</th>
                     <th>Passagers</th>
                     <th>Heure arrivée</th>
@@ -220,6 +225,7 @@
                     for (PlanningReservation reservation : nonAssignees) { %>
                     <tr>
                         <td>#<%= reservation.getId() %></td>
+                        <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                         <td><%= reservation.getClientId() %></td>
                         <td><%= reservation.getNombrePassager() %></td>
                         <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
@@ -229,7 +235,7 @@
                 <%  }
                    } else { %>
                     <tr>
-                        <td colspan="6">Aucune réservation non assignée.</td>
+                        <td colspan="7">Aucune réservation non assignée.</td>
                     </tr>
                 <% } %>
                 </tbody>
