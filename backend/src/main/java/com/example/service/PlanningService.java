@@ -359,6 +359,14 @@ public class PlanningService {
     private BigDecimal getDistance(String from,
             String to,
             Map<String, BigDecimal> distances) {
+        if (from == null || to == null) {
+            return BigDecimal.ZERO;
+        }
+
+        if (from.equals(to)) {
+            return BigDecimal.ZERO;
+        }
+
         BigDecimal direct = distances.get(distanceKey(from, to));
         if (direct != null) {
             return direct;
@@ -367,6 +375,25 @@ public class PlanningService {
         BigDecimal reverse = distances.get(distanceKey(to, from));
         if (reverse != null) {
             return reverse;
+        }
+
+        // Fallback: if the matrix is incomplete (missing hotel-to-hotel distances),
+        // approximate via the airport so multi-stop routes still get non-zero km.
+        // This requires that (from <-> AER) and (AER <-> to) exist.
+        if (!AEROPORT_CODE.equals(from) && !AEROPORT_CODE.equals(to)) {
+            BigDecimal fromToAirport = distances.get(distanceKey(from, AEROPORT_CODE));
+            if (fromToAirport == null) {
+                fromToAirport = distances.get(distanceKey(AEROPORT_CODE, from));
+            }
+
+            BigDecimal airportToTo = distances.get(distanceKey(AEROPORT_CODE, to));
+            if (airportToTo == null) {
+                airportToTo = distances.get(distanceKey(to, AEROPORT_CODE));
+            }
+
+            if (fromToAirport != null && airportToTo != null) {
+                return fromToAirport.add(airportToTo);
+            }
         }
 
         return BigDecimal.ZERO;
