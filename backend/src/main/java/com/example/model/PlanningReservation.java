@@ -15,6 +15,12 @@ public class PlanningReservation {
     private String volReference;
     private String groupReference;
     private Integer ordrePassage;
+    private String fractionReference;
+    private Integer nombrePassagerOriginal;
+    private Integer nombrePassagerAssigne;
+    private String raisonNonAssignation;
+    private LocalDateTime heureDepartReelle;
+    private LocalDateTime heureArriveeAeroport;
     private Integer idVehicule;
     private String vehiculeReference;
 
@@ -104,6 +110,54 @@ public class PlanningReservation {
 
     public void setOrdrePassage(Integer ordrePassage) {
         this.ordrePassage = ordrePassage;
+    }
+
+    public String getFractionReference() {
+        return fractionReference;
+    }
+
+    public void setFractionReference(String fractionReference) {
+        this.fractionReference = fractionReference;
+    }
+
+    public Integer getNombrePassagerOriginal() {
+        return nombrePassagerOriginal;
+    }
+
+    public void setNombrePassagerOriginal(Integer nombrePassagerOriginal) {
+        this.nombrePassagerOriginal = nombrePassagerOriginal;
+    }
+
+    public Integer getNombrePassagerAssigne() {
+        return nombrePassagerAssigne;
+    }
+
+    public void setNombrePassagerAssigne(Integer nombrePassagerAssigne) {
+        this.nombrePassagerAssigne = nombrePassagerAssigne;
+    }
+
+    public String getRaisonNonAssignation() {
+        return raisonNonAssignation;
+    }
+
+    public void setRaisonNonAssignation(String raisonNonAssignation) {
+        this.raisonNonAssignation = raisonNonAssignation;
+    }
+
+    public LocalDateTime getHeureDepartReelle() {
+        return heureDepartReelle;
+    }
+
+    public void setHeureDepartReelle(LocalDateTime heureDepartReelle) {
+        this.heureDepartReelle = heureDepartReelle;
+    }
+
+    public LocalDateTime getHeureArriveeAeroport() {
+        return heureArriveeAeroport;
+    }
+
+    public void setHeureArriveeAeroport(LocalDateTime heureArriveeAeroport) {
+        this.heureArriveeAeroport = heureArriveeAeroport;
     }
 
     public Integer getIdVehicule() {

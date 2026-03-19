@@ -10,11 +10,17 @@ public class PlanningVehiculeTour {
     private String groupReference;
     private String vols;
     private Integer totalPassagers;
+    private Integer numeroTrajet;
+    private LocalDateTime heureDepartTheorique;
     private Vehicule vehicule;
     private List<PlanningReservation> reservations;
     private String route;
     private BigDecimal distanceTotaleKm;
     private Integer dureeTotaleMinutes;
+    private Integer capaciteVehicule;
+    private Integer capaciteUtilisee;
+    private Integer capaciteRestante;
+    private BigDecimal tauxRemplissage;
     private LocalDateTime heureDepart;
     private LocalDateTime heureRetour;
 
@@ -44,6 +50,22 @@ public class PlanningVehiculeTour {
 
     public void setTotalPassagers(Integer totalPassagers) {
         this.totalPassagers = totalPassagers;
+    }
+
+    public Integer getNumeroTrajet() {
+        return numeroTrajet;
+    }
+
+    public void setNumeroTrajet(Integer numeroTrajet) {
+        this.numeroTrajet = numeroTrajet;
+    }
+
+    public LocalDateTime getHeureDepartTheorique() {
+        return heureDepartTheorique;
+    }
+
+    public void setHeureDepartTheorique(LocalDateTime heureDepartTheorique) {
+        this.heureDepartTheorique = heureDepartTheorique;
     }
 
     public Vehicule getVehicule() {
@@ -84,6 +106,38 @@ public class PlanningVehiculeTour {
 
     public void setDureeTotaleMinutes(Integer dureeTotaleMinutes) {
         this.dureeTotaleMinutes = dureeTotaleMinutes;
+    }
+
+    public Integer getCapaciteVehicule() {
+        return capaciteVehicule;
+    }
+
+    public void setCapaciteVehicule(Integer capaciteVehicule) {
+        this.capaciteVehicule = capaciteVehicule;
+    }
+
+    public Integer getCapaciteUtilisee() {
+        return capaciteUtilisee;
+    }
+
+    public void setCapaciteUtilisee(Integer capaciteUtilisee) {
+        this.capaciteUtilisee = capaciteUtilisee;
+    }
+
+    public Integer getCapaciteRestante() {
+        return capaciteRestante;
+    }
+
+    public void setCapaciteRestante(Integer capaciteRestante) {
+        this.capaciteRestante = capaciteRestante;
+    }
+
+    public BigDecimal getTauxRemplissage() {
+        return tauxRemplissage;
+    }
+
+    public void setTauxRemplissage(BigDecimal tauxRemplissage) {
+        this.tauxRemplissage = tauxRemplissage;
     }
 
     public LocalDateTime getHeureDepart() {
