@@ -169,6 +169,7 @@
         <h2>Back-office</h2>
         <a class="menu-link" href="<%= request.getContextPath() %>/reservations/new">Réservations</a>
         <a class="menu-link active" href="<%= request.getContextPath() %>/vehicules">Véhicules</a>
+        <a class="menu-link" href="<%= request.getContextPath() %>/planification">Planification</a>
     </aside>
 
     <main class="content">
