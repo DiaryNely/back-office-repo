@@ -12,6 +12,8 @@ public class PlanningReservation {
     private String hotelNom;
     private String lieuCode;
     private String lieuLibelle;
+    private String volReference;
+    private Integer ordrePassage;
     private Integer idVehicule;
     private String vehiculeReference;
 
@@ -77,6 +79,22 @@ public class PlanningReservation {
 
     public void setLieuLibelle(String lieuLibelle) {
         this.lieuLibelle = lieuLibelle;
+    }
+
+    public String getVolReference() {
+        return volReference;
+    }
+
+    public void setVolReference(String volReference) {
+        this.volReference = volReference;
+    }
+
+    public Integer getOrdrePassage() {
+        return ordrePassage;
+    }
+
+    public void setOrdrePassage(Integer ordrePassage) {
+        this.ordrePassage = ordrePassage;
     }
 
     public Integer getIdVehicule() {
