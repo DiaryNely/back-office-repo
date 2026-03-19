@@ -3,12 +3,14 @@
 <%@ page import="com.example.model.Vehicule" %>
 <%@ page import="com.example.model.PlanningResult" %>
 <%@ page import="com.example.model.PlanningReservation" %>
+<%@ page import="com.example.model.PlanningVehiculeSuivi" %>
 <%@ page import="com.example.model.PlanningVehiculeTour" %>
 <%
     PlanningResult planning = (PlanningResult) request.getAttribute("planning");
     List<Vehicule> vehicules = planning != null ? planning.getVehiculesDisponibles() : null;
     List<PlanningVehiculeTour> tours = planning != null ? planning.getToursAssignes() : null;
     List<PlanningReservation> nonAssignees = planning != null ? planning.getReservationsNonAssignees() : null;
+    List<PlanningVehiculeSuivi> suivis = planning != null ? planning.getSuiviVehicules() : null;
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 %>
 <!DOCTYPE html>
@@ -185,6 +187,7 @@
                             <th>Passagers</th>
                             <th>Ordre passage</th>
                             <th>Heure arrivée</th>
+                            <th>Départ réel</th>
                             <th>Lieu</th>
                         </tr>
                         </thead>
@@ -198,6 +201,7 @@
                                 <td><%= reservation.getNombrePassager() %></td>
                                 <td><%= reservation.getOrdrePassage() != null ? reservation.getOrdrePassage() : "-" %></td>
                                 <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
+                                <td><%= reservation.getDateHeureDepartReelle() != null ? dtf.format(reservation.getDateHeureDepartReelle()) : "-" %></td>
                                 <td><%= reservation.getLieuCode() %> - <%= reservation.getLieuLibelle() %></td>
                             </tr>
                         <% } %>
@@ -208,6 +212,47 @@
                } else { %>
                 <p>Aucune réservation n'a pu être assignée.</p>
             <% } %>
+        </section>
+
+        <section class="card">
+            <h2>Suivi des véhicules</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Référence</th>
+                    <th>Trajets effectués</th>
+                    <th>Historique (départ → retour)</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% if (suivis != null && !suivis.isEmpty()) {
+                    for (PlanningVehiculeSuivi suivi : suivis) {
+                        Vehicule v = suivi.getVehicule(); %>
+                    <tr>
+                        <td><%= v != null ? v.getId() : "-" %></td>
+                        <td><%= v != null && v.getReference() != null ? v.getReference() : "-" %></td>
+                        <td><%= suivi.getNombreTrajets() != null ? suivi.getNombreTrajets() : 0 %></td>
+                        <td>
+                            <% if (suivi.getHistoriqueTrajets() != null && !suivi.getHistoriqueTrajets().isEmpty()) {
+                                for (PlanningVehiculeTour t : suivi.getHistoriqueTrajets()) { %>
+                                    Groupe <%= t.getGroupReference() != null ? t.getGroupReference() : "-" %> :
+                                    <%= t.getHeureDepart() != null ? dtf.format(t.getHeureDepart()) : "-" %>
+                                    →
+                                    <%= t.getHeureRetour() != null ? dtf.format(t.getHeureRetour()) : "-" %>
+                                    <br>
+                            <%  }
+                               } else { %>
+                                -
+                            <% } %>
+                        </td>
+                    </tr>
+                <%  }
+                   } else { %>
+                    <tr><td colspan="4">Aucune donnée de suivi.</td></tr>
+                <% } %>
+                </tbody>
+            </table>
         </section>
 
         <section class="card">

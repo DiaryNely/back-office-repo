@@ -5,7 +5,7 @@ echo ================================================
 
 REM Set project variables
 set PROJECT_NAME=back-office
-set TOMCAT_HOME=C:\apache-tomcat-10.1.52
+set TOMCAT_HOME=C:\apache-tomcat-10.1.50\apache-tomcat-10.1.50
 set WEBAPPS_DIR=%TOMCAT_HOME%\webapps
 
 REM Build framework first

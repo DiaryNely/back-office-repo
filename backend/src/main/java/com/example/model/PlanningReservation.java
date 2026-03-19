@@ -15,6 +15,7 @@ public class PlanningReservation {
     private String volReference;
     private String groupReference;
     private Integer ordrePassage;
+    private LocalDateTime dateHeureDepartReelle;
     private Integer idVehicule;
     private String vehiculeReference;
 
@@ -104,6 +105,14 @@ public class PlanningReservation {
 
     public void setOrdrePassage(Integer ordrePassage) {
         this.ordrePassage = ordrePassage;
+    }
+
+    public LocalDateTime getDateHeureDepartReelle() {
+        return dateHeureDepartReelle;
+    }
+
+    public void setDateHeureDepartReelle(LocalDateTime dateHeureDepartReelle) {
+        this.dateHeureDepartReelle = dateHeureDepartReelle;
     }
 
     public Integer getIdVehicule() {
