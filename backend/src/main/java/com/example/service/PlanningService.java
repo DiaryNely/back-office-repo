@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,10 +34,12 @@ public class PlanningService {
 
     private final PlanningDAO planningDAO;
     private final VehiculeDAO vehiculeDAO;
+    private final Random random;
 
     public PlanningService() {
         this.planningDAO = new PlanningDAO();
         this.vehiculeDAO = new VehiculeDAO();
+        this.random = new Random();
     }
 
     public PlanningResult planifier(String dateValue) throws SQLException {
@@ -52,50 +55,55 @@ public class PlanningService {
                 ? Math.max(0, parametre.getTempsAttente())
                 : 30;
 
-        List<ReservationGroup> groups = buildWaitingGroups(reservations, tempsAttenteMinutes);
-        groups.sort((a, b) -> Integer.compare(b.totalPassagers, a.totalPassagers));
+        List<ReservationGroup> groups = buildWaitingGroups(reservations, tempsAttenteMinutes, date);
+        groups.sort(Comparator
+                .comparing((ReservationGroup group) -> group.requestedDeparture)
+                .thenComparing((ReservationGroup group) -> -group.totalPassagers));
 
+        Map<String, BigDecimal> distances = planningDAO.getDistanceMap();
+
+        Map<Integer, VehicleState> vehicleStates = new HashMap<>();
+        for (Vehicule vehicule : vehicules) {
+            VehicleState state = new VehicleState();
+            state.vehicule = vehicule;
+            state.tripsCount = 0;
+            state.nextAvailableAt = LocalDateTime.of(date, LocalTime.MIDNIGHT);
+            vehicleStates.put(vehicule.getId(), state);
+        }
+
+        List<PlanningVehiculeTour> toursAssignes = new ArrayList<>();
         List<PlanningReservation> nonAssignees = new ArrayList<>();
-        Set<Integer> vehiculesDejaUtilises = new LinkedHashSet<>();
 
         for (ReservationGroup group : groups) {
-            Vehicule vehiculeChoisi = choisirVehicule(vehicules, group.totalPassagers, vehiculesDejaUtilises);
+            VehicleState vehicleState = choisirVehiculeDisponible(group, vehicleStates);
 
-            if (vehiculeChoisi == null) {
+            if (vehicleState == null) {
                 nonAssignees.addAll(group.reservations);
                 continue;
             }
 
-            vehiculesDejaUtilises.add(vehiculeChoisi.getId());
-            group.assignedVehiculeId = vehiculeChoisi.getId();
+            LocalDateTime realDeparture = vehicleState.nextAvailableAt.isAfter(group.requestedDeparture)
+                    ? vehicleState.nextAvailableAt
+                    : group.requestedDeparture;
+
+            PlanningVehiculeTour tour = calculerTour(vehicleState.vehicule, group, parametre, distances, date,
+                    realDeparture);
+
+            vehicleState.tripsCount += 1;
+            vehicleState.nextAvailableAt = tour.getHeureRetour();
+            tour.setNumeroTrajet(vehicleState.tripsCount);
+
+            toursAssignes.add(tour);
+            group.assignedVehiculeId = vehicleState.vehicule.getId();
 
             for (PlanningReservation reservation : group.reservations) {
-                reservation.setIdVehicule(vehiculeChoisi.getId());
-                reservation.setVehiculeReference(vehiculeChoisi.getReference());
+                reservation.setIdVehicule(vehicleState.vehicule.getId());
+                reservation.setVehiculeReference(vehicleState.vehicule.getReference());
                 reservation.setGroupReference(group.groupReference);
-                planningDAO.assignVehicule(reservation.getId(), vehiculeChoisi.getId());
+                reservation.setHeureDepartReelle(tour.getHeureDepart());
+                reservation.setHeureArriveeAeroport(tour.getHeureRetour());
+                planningDAO.assignVehicule(reservation.getId(), vehicleState.vehicule.getId());
             }
-        }
-
-        Map<String, BigDecimal> distances = planningDAO.getDistanceMap();
-        List<PlanningVehiculeTour> toursAssignes = new ArrayList<>();
-
-        for (ReservationGroup group : groups) {
-            if (group.assignedVehiculeId == null) {
-                continue;
-            }
-
-            Vehicule vehicule = vehicules.stream()
-                    .filter(v -> Objects.equals(v.getId(), group.assignedVehiculeId))
-                    .findFirst()
-                    .orElse(null);
-
-            if (vehicule == null) {
-                continue;
-            }
-
-            PlanningVehiculeTour tour = calculerTour(vehicule, group, parametre, distances, date);
-            toursAssignes.add(tour);
         }
 
         PlanningResult result = new PlanningResult();
@@ -119,16 +127,11 @@ public class PlanningService {
         }
     }
 
-    private Vehicule choisirVehicule(List<Vehicule> vehicules,
-            Integer nombrePassager,
-            Set<Integer> vehiculesDejaUtilises) {
-        if (nombrePassager == null || nombrePassager <= 0) {
-            return null;
-        }
-
-        List<Vehicule> candidats = vehicules.stream()
-                .filter(v -> !vehiculesDejaUtilises.contains(v.getId()))
-                .filter(v -> v.getNombrePlaces() != null && v.getNombrePlaces() >= nombrePassager)
+    private VehicleState choisirVehiculeDisponible(ReservationGroup group,
+            Map<Integer, VehicleState> vehicleStates) {
+        List<VehicleState> candidats = vehicleStates.values().stream()
+                .filter(state -> state.vehicule.getNombrePlaces() != null
+                        && state.vehicule.getNombrePlaces() >= group.totalPassagers)
                 .collect(Collectors.toList());
 
         if (candidats.isEmpty()) {
@@ -136,32 +139,58 @@ public class PlanningService {
         }
 
         int capaciteProche = candidats.stream()
-                .map(Vehicule::getNombrePlaces)
+                .map(state -> state.vehicule.getNombrePlaces())
                 .min(Integer::compareTo)
                 .orElse(Integer.MAX_VALUE);
 
-        List<Vehicule> capaciteOptimale = candidats.stream()
-                .filter(v -> Objects.equals(v.getNombrePlaces(), capaciteProche))
+        List<VehicleState> capaciteOptimale = candidats.stream()
+                .filter(state -> Objects.equals(state.vehicule.getNombrePlaces(), capaciteProche))
                 .collect(Collectors.toList());
 
-        List<Vehicule> diesel = capaciteOptimale.stream()
-                .filter(v -> "D".equalsIgnoreCase(v.getTypeCarburantCode()))
+        int minTrips = capaciteOptimale.stream()
+                .map(state -> state.tripsCount)
+                .min(Integer::compareTo)
+                .orElse(Integer.MAX_VALUE);
+
+        List<VehicleState> tripOptimale = capaciteOptimale.stream()
+                .filter(state -> state.tripsCount == minTrips)
                 .collect(Collectors.toList());
 
-        List<Vehicule> pool = diesel.isEmpty() ? capaciteOptimale : diesel;
-        if (pool.size() == 1) {
-            return pool.get(0);
+        List<VehicleState> diesel = tripOptimale.stream()
+                .filter(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()))
+                .collect(Collectors.toList());
+
+        List<VehicleState> pool = diesel.isEmpty() ? tripOptimale : diesel;
+
+        LocalDateTime earliestRealDeparture = pool.stream()
+                .map(state -> state.nextAvailableAt.isAfter(group.requestedDeparture)
+                        ? state.nextAvailableAt
+                        : group.requestedDeparture)
+                .min(LocalDateTime::compareTo)
+                .orElse(group.requestedDeparture);
+
+        List<VehicleState> earliestPool = pool.stream()
+                .filter(state -> {
+                    LocalDateTime realDeparture = state.nextAvailableAt.isAfter(group.requestedDeparture)
+                            ? state.nextAvailableAt
+                            : group.requestedDeparture;
+                    return realDeparture.equals(earliestRealDeparture);
+                })
+                .collect(Collectors.toList());
+
+        if (earliestPool.size() == 1) {
+            return earliestPool.get(0);
         }
 
-        int randomIndex = (int) (Math.random() * pool.size());
-        return pool.get(randomIndex);
+        return earliestPool.get(random.nextInt(earliestPool.size()));
     }
 
     private PlanningVehiculeTour calculerTour(Vehicule vehicule,
             ReservationGroup group,
             PlanningParametre parametre,
             Map<String, BigDecimal> distances,
-            LocalDate date) {
+            LocalDate date,
+            LocalDateTime heureDepartReelle) {
 
         List<PlanningReservation> sortedReservations = new ArrayList<>(group.reservations);
         sortedReservations.sort(Comparator.comparing(
@@ -182,23 +211,18 @@ public class PlanningService {
                 .setScale(0, RoundingMode.HALF_UP)
                 .intValue();
 
-        LocalDateTime heureDepart = sortedReservations.stream()
-                .map(PlanningReservation::getDateHeureArrivee)
-                .filter(value -> value != null)
-                .max(LocalDateTime::compareTo)
-                .orElse(LocalDateTime.of(date, LocalTime.of(8, 0)));
-
         PlanningVehiculeTour tour = new PlanningVehiculeTour();
         tour.setGroupReference(group.groupReference);
         tour.setVols(group.volsLabel);
         tour.setTotalPassagers(group.totalPassagers);
+        tour.setHeureDepartTheorique(group.requestedDeparture);
         tour.setVehicule(vehicule);
         tour.setReservations(sortedReservations);
         tour.setRoute(routeComputation.routeLabel);
         tour.setDistanceTotaleKm(routeComputation.totalKm.setScale(2, RoundingMode.HALF_UP));
         tour.setDureeTotaleMinutes(totalMinutes);
-        tour.setHeureDepart(heureDepart);
-        tour.setHeureRetour(heureDepart.plusMinutes(totalMinutes));
+        tour.setHeureDepart(heureDepartReelle);
+        tour.setHeureRetour(heureDepartReelle.plusMinutes(totalMinutes));
 
         applyVisitOrder(sortedReservations, routeComputation.orderedStops);
 
@@ -286,7 +310,9 @@ public class PlanningService {
         return from + "->" + to;
     }
 
-    private List<ReservationGroup> buildWaitingGroups(List<PlanningReservation> reservations, int waitingMinutes) {
+    private List<ReservationGroup> buildWaitingGroups(List<PlanningReservation> reservations,
+            int waitingMinutes,
+            LocalDate date) {
         Map<String, ReservationGroup> flights = buildFlightUnits(reservations);
         List<ReservationGroup> sortedFlights = new ArrayList<>(flights.values());
 
@@ -324,6 +350,9 @@ public class PlanningService {
             current.volsLabel = current.volReferences.isEmpty()
                     ? "-"
                     : current.volReferences.stream().sorted().collect(Collectors.joining(", "));
+            current.requestedDeparture = current.lastArrival != null
+                    ? current.lastArrival
+                    : LocalDateTime.of(date, LocalTime.of(8, 0));
 
             for (PlanningReservation reservation : current.reservations) {
                 reservation.setGroupReference(current.groupReference);
@@ -403,6 +432,14 @@ public class PlanningService {
         private int totalPassagers;
         private Integer assignedVehiculeId;
         private LocalDateTime lastArrival;
+        private LocalDateTime requestedDeparture;
+    }
+
+    private static class VehicleState {
+
+        private Vehicule vehicule;
+        private int tripsCount;
+        private LocalDateTime nextAvailableAt;
     }
 
     private static class RouteComputation {
