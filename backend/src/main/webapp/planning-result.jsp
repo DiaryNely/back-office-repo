@@ -166,10 +166,12 @@
                         (places: <%= tour.getVehicule().getNombrePlaces() %>, carburant: <%= tour.getVehicule().getTypeCarburantCode() %>)
                     </h3>
                     <p class="meta">
+                        Trajet #: <strong><%= tour.getNumeroTrajet() != null ? tour.getNumeroTrajet() : "-" %></strong> |
                         Vols regroupés: <strong><%= tour.getVols() != null ? tour.getVols() : "-" %></strong> |
                         Passagers groupe: <strong><%= tour.getTotalPassagers() != null ? tour.getTotalPassagers() : 0 %></strong><br>
                         Route: <strong><%= tour.getRoute() %></strong><br>
-                        Départ: <strong><%= tour.getHeureDepart() != null ? dtf.format(tour.getHeureDepart()) : "-" %></strong> |
+                        Départ théorique: <strong><%= tour.getHeureDepartTheorique() != null ? dtf.format(tour.getHeureDepartTheorique()) : "-" %></strong> |
+                        Départ réel: <strong><%= tour.getHeureDepart() != null ? dtf.format(tour.getHeureDepart()) : "-" %></strong> |
                         Arrivée aéroport: <strong><%= tour.getHeureRetour() != null ? dtf.format(tour.getHeureRetour()) : "-" %></strong> |
                         Distance: <strong><%= tour.getDistanceTotaleKm() %> km</strong> |
                         Durée: <strong><%= tour.getDureeTotaleMinutes() %> min</strong>
@@ -185,6 +187,7 @@
                             <th>Passagers</th>
                             <th>Ordre passage</th>
                             <th>Heure arrivée</th>
+                            <th>Départ réel</th>
                             <th>Lieu</th>
                         </tr>
                         </thead>
@@ -198,6 +201,7 @@
                                 <td><%= reservation.getNombrePassager() %></td>
                                 <td><%= reservation.getOrdrePassage() != null ? reservation.getOrdrePassage() : "-" %></td>
                                 <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
+                                <td><%= reservation.getHeureDepartReelle() != null ? dtf.format(reservation.getHeureDepartReelle()) : "-" %></td>
                                 <td><%= reservation.getLieuCode() %> - <%= reservation.getLieuLibelle() %></td>
                             </tr>
                         <% } %>

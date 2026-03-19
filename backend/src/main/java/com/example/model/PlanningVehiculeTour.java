@@ -10,6 +10,8 @@ public class PlanningVehiculeTour {
     private String groupReference;
     private String vols;
     private Integer totalPassagers;
+    private Integer numeroTrajet;
+    private LocalDateTime heureDepartTheorique;
     private Vehicule vehicule;
     private List<PlanningReservation> reservations;
     private String route;
@@ -44,6 +46,22 @@ public class PlanningVehiculeTour {
 
     public void setTotalPassagers(Integer totalPassagers) {
         this.totalPassagers = totalPassagers;
+    }
+
+    public Integer getNumeroTrajet() {
+        return numeroTrajet;
+    }
+
+    public void setNumeroTrajet(Integer numeroTrajet) {
+        this.numeroTrajet = numeroTrajet;
+    }
+
+    public LocalDateTime getHeureDepartTheorique() {
+        return heureDepartTheorique;
+    }
+
+    public void setHeureDepartTheorique(LocalDateTime heureDepartTheorique) {
+        this.heureDepartTheorique = heureDepartTheorique;
     }
 
     public Vehicule getVehicule() {
