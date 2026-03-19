@@ -13,6 +13,7 @@ public class PlanningReservation {
     private String lieuCode;
     private String lieuLibelle;
     private String volReference;
+    private String groupReference;
     private Integer ordrePassage;
     private Integer idVehicule;
     private String vehiculeReference;
@@ -87,6 +88,14 @@ public class PlanningReservation {
 
     public void setVolReference(String volReference) {
         this.volReference = volReference;
+    }
+
+    public String getGroupReference() {
+        return groupReference;
+    }
+
+    public void setGroupReference(String groupReference) {
+        this.groupReference = groupReference;
     }
 
     public Integer getOrdrePassage() {

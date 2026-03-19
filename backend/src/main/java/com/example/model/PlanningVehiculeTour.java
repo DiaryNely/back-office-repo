@@ -7,6 +7,9 @@ import java.util.List;
 
 public class PlanningVehiculeTour {
 
+    private String groupReference;
+    private String vols;
+    private Integer totalPassagers;
     private Vehicule vehicule;
     private List<PlanningReservation> reservations;
     private String route;
@@ -17,6 +20,30 @@ public class PlanningVehiculeTour {
 
     public PlanningVehiculeTour() {
         this.reservations = new ArrayList<>();
+    }
+
+    public String getGroupReference() {
+        return groupReference;
+    }
+
+    public void setGroupReference(String groupReference) {
+        this.groupReference = groupReference;
+    }
+
+    public String getVols() {
+        return vols;
+    }
+
+    public void setVols(String vols) {
+        this.vols = vols;
+    }
+
+    public Integer getTotalPassagers() {
+        return totalPassagers;
+    }
+
+    public void setTotalPassagers(Integer totalPassagers) {
+        this.totalPassagers = totalPassagers;
     }
 
     public Vehicule getVehicule() {

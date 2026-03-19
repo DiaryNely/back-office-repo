@@ -162,10 +162,12 @@
                 for (PlanningVehiculeTour tour : tours) { %>
                 <div class="tour">
                     <h3 style="margin-top:0;">
-                        Véhicule <%= tour.getVehicule().getReference() %>
+                        Groupe <%= tour.getGroupReference() != null ? tour.getGroupReference() : "-" %> - Véhicule <%= tour.getVehicule().getReference() %>
                         (places: <%= tour.getVehicule().getNombrePlaces() %>, carburant: <%= tour.getVehicule().getTypeCarburantCode() %>)
                     </h3>
                     <p class="meta">
+                        Vols regroupés: <strong><%= tour.getVols() != null ? tour.getVols() : "-" %></strong> |
+                        Passagers groupe: <strong><%= tour.getTotalPassagers() != null ? tour.getTotalPassagers() : 0 %></strong><br>
                         Route: <strong><%= tour.getRoute() %></strong><br>
                         Départ: <strong><%= tour.getHeureDepart() != null ? dtf.format(tour.getHeureDepart()) : "-" %></strong> |
                         Arrivée aéroport: <strong><%= tour.getHeureRetour() != null ? dtf.format(tour.getHeureRetour()) : "-" %></strong> |
@@ -177,6 +179,7 @@
                         <thead>
                         <tr>
                             <th>Réservation</th>
+                            <th>Groupe</th>
                             <th>Vol</th>
                             <th>Client</th>
                             <th>Passagers</th>
@@ -189,6 +192,7 @@
                         <% for (PlanningReservation reservation : tour.getReservations()) { %>
                             <tr>
                                 <td>#<%= reservation.getId() %></td>
+                                <td><%= reservation.getGroupReference() != null ? reservation.getGroupReference() : "-" %></td>
                                 <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                                 <td><%= reservation.getClientId() %></td>
                                 <td><%= reservation.getNombrePassager() %></td>
@@ -212,6 +216,7 @@
                 <thead>
                 <tr>
                     <th>Réservation</th>
+                    <th>Groupe</th>
                     <th>Vol</th>
                     <th>Client</th>
                     <th>Passagers</th>
@@ -225,6 +230,7 @@
                     for (PlanningReservation reservation : nonAssignees) { %>
                     <tr>
                         <td>#<%= reservation.getId() %></td>
+                        <td><%= reservation.getGroupReference() != null ? reservation.getGroupReference() : "-" %></td>
                         <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                         <td><%= reservation.getClientId() %></td>
                         <td><%= reservation.getNombrePassager() %></td>
@@ -235,7 +241,7 @@
                 <%  }
                    } else { %>
                     <tr>
-                        <td colspan="7">Aucune réservation non assignée.</td>
+                        <td colspan="8">Aucune réservation non assignée.</td>
                     </tr>
                 <% } %>
                 </tbody>
