@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,7 +17,7 @@ public class VehiculeDAO {
 
     public List<Vehicule> findAll() throws SQLException {
         String sql = """
-                SELECT v.id, v.reference, v.nombre_places, v.type_carburant_id,
+            SELECT v.id, v.reference, v.nombre_places, v.type_carburant_id, v.heure_disponibilite,
                        tc.code AS type_code, tc.nom AS type_nom
                 FROM vehicules v
                 JOIN type_carburant tc ON tc.id = v.type_carburant_id
@@ -43,7 +44,7 @@ public class VehiculeDAO {
         }
 
         String sql = """
-                SELECT v.id, v.reference, v.nombre_places, v.type_carburant_id,
+            SELECT v.id, v.reference, v.nombre_places, v.type_carburant_id, v.heure_disponibilite,
                        tc.code AS type_code, tc.nom AS type_nom
                 FROM vehicules v
                 JOIN type_carburant tc ON tc.id = v.type_carburant_id
@@ -198,6 +199,8 @@ public class VehiculeDAO {
         vehicule.setReference(resultSet.getString("reference"));
         vehicule.setNombrePlaces(resultSet.getInt("nombre_places"));
         vehicule.setTypeCarburantId(resultSet.getInt("type_carburant_id"));
+        Time heureDisponibilite = resultSet.getTime("heure_disponibilite");
+        vehicule.setHeureDisponibilite(heureDisponibilite != null ? heureDisponibilite.toLocalTime() : null);
         vehicule.setTypeCarburantCode(resultSet.getString("type_code"));
         vehicule.setTypeCarburantNom(resultSet.getString("type_nom"));
         return vehicule;

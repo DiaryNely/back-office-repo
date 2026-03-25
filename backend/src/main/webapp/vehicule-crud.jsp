@@ -1,3 +1,4 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="com.example.model.Vehicule" %>
@@ -166,7 +167,7 @@
 <body>
 <div class="layout">
     <aside class="sidebar">
-        <h2>Back-office</h2>
+        <h2>ETU003123 - ETU003367 - ETU003142</h2>
         <a class="menu-link" href="<%= request.getContextPath() %>/reservations/new">Réservations</a>
         <a class="menu-link active" href="<%= request.getContextPath() %>/vehicules">Véhicules</a>
         <a class="menu-link" href="<%= request.getContextPath() %>/planification">Planification</a>

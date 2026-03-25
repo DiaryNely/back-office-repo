@@ -6,6 +6,9 @@
          version="5.0">
     
     <display-name>Application Backend</display-name>
+
+    <request-character-encoding>UTF-8</request-character-encoding>
+    <response-character-encoding>UTF-8</response-character-encoding>
     
     <!-- Configuration de la servlet du framework -->
     <servlet>
