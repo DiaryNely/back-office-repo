@@ -1,3 +1,4 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%
     String errorMessage = (String) request.getAttribute("errorMessage");
     String planningDate = (String) request.getAttribute("planningDate");
@@ -91,7 +92,7 @@
 <body>
 <div class="layout">
     <aside class="sidebar">
-        <h2>Back-office</h2>
+        <h2>ETU003123 - ETU003367 - ETU003142</h2>
         <a class="menu-link" href="<%= request.getContextPath() %>/reservations/new">Réservations</a>
         <a class="menu-link" href="<%= request.getContextPath() %>/vehicules">Véhicules</a>
         <a class="menu-link active" href="<%= request.getContextPath() %>/planification">Planification</a>
