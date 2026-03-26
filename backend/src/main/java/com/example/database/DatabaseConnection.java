@@ -22,7 +22,7 @@ public class DatabaseConnection {
     public static Connection getConnection() throws SQLException {
         String url = getEnvOrDefault("DB_URL", "jdbc:postgresql://localhost:5432/hotel_db");
         String user = getEnvOrDefault("DB_USER", "postgres");
-        String password = getEnvOrDefault("DB_PASSWORD", "postgres");
+        String password = getEnvOrDefault("DB_PASSWORD", "admin");
 
         return DriverManager.getConnection(url, user, password);
     }

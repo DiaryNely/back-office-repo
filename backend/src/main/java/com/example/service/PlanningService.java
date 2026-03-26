@@ -155,11 +155,29 @@ public class PlanningService {
                 ? Math.max(0, parametre.getTempsAttente())
                 : 30;
 
-        List<PlanningReservation> workload = new ArrayList<>();
+        LocalDateTime groupDepartTime = group.requestedDeparture;
+        
+        // Étape 1: Traiter les réservations non assignées du cycle précédent en priorité
+        List<PlanningReservation> priorityReservations = new ArrayList<>();
+        List<PlanningReservation> newReservations = new ArrayList<>();
+        
         if (carryIn != null && !carryIn.isEmpty()) {
-            workload.addAll(carryIn);
+            priorityReservations.addAll(carryIn);
         }
-        workload.addAll(group.reservations);
+        newReservations.addAll(group.reservations);
+        
+        // Essayer de retourner les véhicules avec les réservations prioritaires
+        processDynamicAllocationForReturningVehicles(priorityReservations, vehicleStates, 
+                groupDepartTime, dispatchWindowMinutes, outcome, assignmentTrackers, 
+                parametre, distances, date, group);
+        
+        // Construire la charge de travail pour ce groupe
+        List<PlanningReservation> workload = new ArrayList<>();
+        // Ajouter les réservations non assignées restantes après le traitement dynamique
+        workload.addAll(priorityReservations.stream()
+                .filter(r -> r.getNombrePassagerAssigne() == null || r.getNombrePassagerAssigne() == 0)
+                .collect(Collectors.toList()));
+        workload.addAll(newReservations);
 
         List<ReservationUnit> pendingUnits = workload.stream()
                 .map(ReservationUnit::new)
@@ -632,6 +650,282 @@ public class PlanningService {
         }
 
         return grouped;
+    }
+
+    /**
+     * Traite l'allocation dynamique quand un véhicule revient et qu'il existe des réservations non assignées.
+     * Logique :
+     * - Si le véhicule revient avec capacité restante : partir immédiatement avec max passagers
+     * - Si places dispo > passagers : comparer avec temps d'attente 
+     *   - Attendre prochain regroupement OU partir selon temps d'attente estimé
+     * - Nouveau regroupement : réservations non assignées en priorité
+     */
+    private void processDynamicAllocationForReturningVehicles(
+            List<PlanningReservation> nonAssignedReservations,
+            Map<Integer, VehicleState> vehicleStates,
+            LocalDateTime groupDepartTime,
+            int dispatchWindowMinutes,
+            GroupAssignmentOutcome outcome,
+            Map<Integer, ReservationAssignmentTracker> assignmentTrackers,
+            PlanningParametre parametre,
+            Map<String, BigDecimal> distances,
+            LocalDate date,
+            ReservationGroup currentGroup) {
+
+        if (nonAssignedReservations == null || nonAssignedReservations.isEmpty()) {
+            return;
+        }
+
+        List<VehicleState> returningVehicles = vehicleStates.values().stream()
+                .filter(state -> state.nextAvailableAt != null && 
+                        state.nextAvailableAt.isBefore(groupDepartTime))
+                .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) > 0)
+                .sorted(Comparator.comparing(state -> state.nextAvailableAt))
+                .collect(Collectors.toList());
+
+        for (VehicleState vehicleState : returningVehicles) {
+            if (nonAssignedReservations.isEmpty()) {
+                break;
+            }
+
+            VehicleReturnDecision decision = makeReturnVehicleDecision(
+                    vehicleState,
+                    nonAssignedReservations,
+                    groupDepartTime,
+                    dispatchWindowMinutes,
+                    parametre);
+
+            if (decision.shouldDepart) {
+                // Sélectionner les passagers à embarquer
+                List<PassengerSelectionResult> selections = selectPassengersForReturnVehicle(
+                        nonAssignedReservations,
+                        decision.availableCapacity,
+                        assignmentTrackers);
+
+                if (!selections.isEmpty()) {
+                    // Créer une tournée de départ immédiat
+                    PlanningVehiculeTour impromptuTour = buildImpromptuTour(
+                            vehicleState,
+                            selections,
+                            currentGroup,
+                            parametre,
+                            distances,
+                            date,
+                            decision.departureTime,
+                            assignmentTrackers);
+
+                    if (impromptuTour != null) {
+                        outcome.tours.add(impromptuTour);
+
+                        // Mettre à jour les réservations et states
+                        vehicleState.nextAvailableAt = impromptuTour.getHeureRetour();
+                        vehicleState.tripsCount++;
+
+                        // Retirer les réservations assignées de la liste des non assignées
+                        for (PassengerSelectionResult selection : selections) {
+                            nonAssignedReservations.removeIf(r ->
+                                    r.getId().equals(selection.reservationId) &&
+                                            r.getNombrePassager().equals(selection.passengerCount));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Décide si un véhicule qui revient doit partir immédiatement ou attendre.
+     */
+    private VehicleReturnDecision makeReturnVehicleDecision(
+            VehicleState vehicleState,
+            List<PlanningReservation> nonAssignedReservations,
+            LocalDateTime nextGroupDepartTime,
+            int dispatchWindowMinutes,
+            PlanningParametre parametre) {
+
+        VehicleReturnDecision decision = new VehicleReturnDecision();
+        decision.availableCapacity = Objects.requireNonNullElse(vehicleState.vehicule.getNombrePlaces(), 0);
+
+        // Il y a toujours des réservations non assignées : partir immédiatement par défaut
+        decision.departureTime = vehicleState.nextAvailableAt;
+
+        int totalNonAssignedPassengers = nonAssignedReservations.stream()
+                .mapToInt(r -> Objects.requireNonNullElse(r.getNombrePassager(), 0))
+                .sum();
+
+        // Si places disponibles > passagers à transporter : comparer temps d'attente
+        if (decision.availableCapacity > totalNonAssignedPassengers) {
+            int estimatedWaitingMinutes = parametre.getTempsAttente() != null
+                    ? Math.max(0, parametre.getTempsAttente())
+                    : 30;
+
+            // Si l'attente est inférieure au temps d'attente configuré : attendre
+            if (estimatedWaitingMinutes <= 15) {  // Seuil de 15 minutes pour attendre
+                decision.shouldDepart = false;
+                return decision;
+            }
+        }
+
+        // Partir immédiatement avec max passagers possibles
+        decision.shouldDepart = true;
+        return decision;
+    }
+
+    /**
+     * Sélectionne les passagers à embarquer au retour du véhicule.
+     * Stratégie : prendre le maximum de passagers selon la capacité, en priorité les plus grands groupes.
+     */
+    private List<PassengerSelectionResult> selectPassengersForReturnVehicle(
+            List<PlanningReservation> nonAssignedReservations,
+            int availableCapacity,
+            Map<Integer, ReservationAssignmentTracker> assignmentTrackers) {
+
+        List<PassengerSelectionResult> result = new ArrayList<>();
+        int remainingCapacity = availableCapacity;
+
+        // Trier par nombre de passagers décroissant (plus gros groupes d'abord)
+        List<PlanningReservation> sorted = nonAssignedReservations.stream()
+                .sorted(Comparator.comparing(
+                        r -> Objects.requireNonNullElse(r.getNombrePassager(), 0),
+                        Comparator.reverseOrder()))
+                .collect(Collectors.toList());
+
+        for (PlanningReservation reservation : sorted) {
+            if (remainingCapacity <= 0) {
+                break;
+            }
+
+            int passengers = Objects.requireNonNullElse(reservation.getNombrePassager(), 0);
+            if (passengers <= 0) {
+                continue;
+            }
+
+            int toAssign = Math.min(passengers, remainingCapacity);
+
+            PassengerSelectionResult selection = new PassengerSelectionResult();
+            selection.reservationId = reservation.getId();
+            selection.passengerCount = toAssign;
+            selection.reservation = reservation;
+
+            result.add(selection);
+            remainingCapacity -= toAssign;
+        }
+
+        return result;
+    }
+
+    /**
+     * Construit une tournée impromptu pour un véhicule qui revient.
+     */
+    private PlanningVehiculeTour buildImpromptuTour(
+            VehicleState vehicleState,
+            List<PassengerSelectionResult> selections,
+            ReservationGroup originalGroup,
+            PlanningParametre parametre,
+            Map<String, BigDecimal> distances,
+            LocalDate date,
+            LocalDateTime departureTime,
+            Map<Integer, ReservationAssignmentTracker> assignmentTrackers) {
+
+        if (selections.isEmpty()) {
+            return null;
+        }
+
+        List<PlanningReservation> tourReservations = new ArrayList<>();
+        int totalPassengers = 0;
+
+        for (PassengerSelectionResult selection : selections) {
+            PlanningReservation fragment = buildReservationFragment(
+                    selection.reservation,
+                    selection.passengerCount,
+                    1,
+                    originalGroup.groupReference);
+
+            fragment.setIdVehicule(vehicleState.vehicule.getId());
+            fragment.setVehiculeReference(vehicleState.vehicule.getReference());
+            fragment.setHeureDepartReelle(departureTime);
+            fragment.setNombrePassagerAssigne(selection.passengerCount);
+
+            tourReservations.add(fragment);
+            totalPassengers += selection.passengerCount;
+
+            // Mise à jour du tracker
+            ReservationAssignmentTracker tracker = assignmentTrackers.get(selection.reservationId);
+            if (tracker != null) {
+                tracker.assignedPassengers += selection.passengerCount;
+                if (selection.passengerCount > tracker.bestAssignedPassengers) {
+                    tracker.bestAssignedPassengers = selection.passengerCount;
+                    tracker.principalVehicleId = vehicleState.vehicule.getId();
+                    tracker.principalVehicleReference = vehicleState.vehicule.getReference();
+                }
+            }
+        }
+
+        // Calculer la route
+        List<PlanningReservation> sortedReservations = new ArrayList<>(tourReservations);
+        sortedReservations.sort(Comparator.comparing(
+                reservation -> reservation.getDateHeureArrivee() != null
+                        ? reservation.getDateHeureArrivee()
+                        : LocalDateTime.of(date, LocalTime.MIDNIGHT)));
+
+        RouteComputation routeComputation = computeNearestNeighborRoute(sortedReservations, distances);
+
+        BigDecimal vitesse = parametre.getVitesseMoyenne();
+        if (vitesse == null || vitesse.compareTo(BigDecimal.ZERO) <= 0) {
+            vitesse = BigDecimal.valueOf(50);
+        }
+
+        int totalMinutes = routeComputation.totalKm
+                .divide(vitesse, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(60))
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValue();
+
+        int capaciteTotal = Objects.requireNonNullElse(vehicleState.vehicule.getNombrePlaces(), 0);
+        int capaciteUtilisee = totalPassengers;
+        int capaciteRestante = capaciteTotal - capaciteUtilisee;
+        BigDecimal taux = BigDecimal.ZERO;
+        if (capaciteTotal > 0) {
+            taux = BigDecimal.valueOf(capaciteUtilisee)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(capaciteTotal), 2, RoundingMode.HALF_UP);
+        }
+
+        PlanningVehiculeTour tour = new PlanningVehiculeTour();
+        tour.setGroupReference(originalGroup.groupReference);
+        tour.setVols(originalGroup.volsLabel);
+        tour.setTotalPassagers(capaciteUtilisee);
+        tour.setNumeroTrajet(vehicleState.tripsCount + 1);
+        tour.setHeureDepartTheorique(originalGroup.requestedDeparture);
+        tour.setVehicule(vehicleState.vehicule);
+        tour.setReservations(sortedReservations);
+        tour.setRoute(routeComputation.routeLabel);
+        tour.setDistanceTotaleKm(routeComputation.totalKm.setScale(2, RoundingMode.HALF_UP));
+        tour.setDureeTotaleMinutes(totalMinutes);
+        tour.setCapaciteVehicule(capaciteTotal);
+        tour.setCapaciteUtilisee(capaciteUtilisee);
+        tour.setCapaciteRestante(capaciteRestante);
+        tour.setTauxRemplissage(taux);
+        tour.setHeureDepart(departureTime);
+        tour.setHeureRetour(departureTime.plusMinutes(totalMinutes));
+
+        applyVisitOrder(sortedReservations, routeComputation.orderedStops);
+
+        return tour;
+    }
+
+    private static class VehicleReturnDecision {
+
+        LocalDateTime departureTime;
+        boolean shouldDepart = true;  // Partir par défaut
+        int availableCapacity;
+    }
+
+    private static class PassengerSelectionResult {
+
+        Integer reservationId;
+        Integer passengerCount;
+        PlanningReservation reservation;
     }
 
     private Map<String, ReservationGroup> buildFlightUnits(List<PlanningReservation> reservations) {
