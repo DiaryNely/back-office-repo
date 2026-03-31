@@ -9,6 +9,8 @@
     PlanningResult planning = (PlanningResult) request.getAttribute("planning");
     List<Vehicule> vehicules = planning != null ? planning.getVehiculesDisponibles() : null;
     List<PlanningVehiculeTour> tours = planning != null ? planning.getToursAssignes() : null;
+    List<PlanningReservation> totalementAssignees = planning != null ? planning.getReservationsTotalementAssignees() : null;
+    List<PlanningReservation> partiellementAssignees = planning != null ? planning.getReservationsPartiellementAssignees() : null;
     List<PlanningReservation> nonAssignees = planning != null ? planning.getReservationsNonAssignees() : null;
     List<PlanningVehiculeSuivi> suivis = planning != null ? planning.getSuiviVehicules() : null;
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -125,6 +127,8 @@
                 <p class="meta">
                     Date : <strong><%= planning.getDate() %></strong> |
                     Réservations traitées : <strong><%= planning.getTotalReservations() %></strong> |
+                    Totalement assignées : <strong><%= totalementAssignees != null ? totalementAssignees.size() : 0 %></strong> |
+                    Partiellement assignées : <strong><%= partiellementAssignees != null ? partiellementAssignees.size() : 0 %></strong> |
                     Non assignées : <strong><%= nonAssignees != null ? nonAssignees.size() : 0 %></strong>
                 </p>
             <% } %>
@@ -173,6 +177,9 @@
                         Route: <strong><%= tour.getRoute() %></strong><br>
                         Départ: <strong><%= tour.getHeureDepart() != null ? dtf.format(tour.getHeureDepart()) : "-" %></strong> |
                         Arrivée aéroport: <strong><%= tour.getHeureRetour() != null ? dtf.format(tour.getHeureRetour()) : "-" %></strong> |
+                        Décision: <strong><%= tour.getDecisionDepart() %></strong> |
+                        Attente utilisée: <strong><%= tour.getTempsAttenteUtiliseMinutes() %> min</strong> |
+                        Taux remplissage: <strong><%= tour.getTauxRemplissage() %>%</strong> |
                         Distance: <strong><%= tour.getDistanceTotaleKm() %> km</strong> |
                         Durée: <strong><%= tour.getDureeTotaleMinutes() %> min</strong>
                     </p>
@@ -185,6 +192,8 @@
                             <th>Vol</th>
                             <th>Client</th>
                             <th>Passagers</th>
+                            <th>Assignés sur trajet</th>
+                            <th>Restants après trajet</th>
                             <th>Ordre passage</th>
                             <th>Heure arrivée</th>
                             <th>Départ réel</th>
@@ -199,6 +208,8 @@
                                 <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                                 <td><%= reservation.getClientId() %></td>
                                 <td><%= reservation.getNombrePassager() %></td>
+                                <td><%= reservation.getPassagersAssignesSurTour() != null ? reservation.getPassagersAssignesSurTour() : 0 %></td>
+                                <td><%= reservation.getPassagersRestants() != null ? reservation.getPassagersRestants() : 0 %></td>
                                 <td><%= reservation.getOrdrePassage() != null ? reservation.getOrdrePassage() : "-" %></td>
                                 <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
                                 <td><%= reservation.getDateHeureDepartReelle() != null ? dtf.format(reservation.getDateHeureDepartReelle()) : "-" %></td>
@@ -222,6 +233,8 @@
                     <th>ID</th>
                     <th>Référence</th>
                     <th>Trajets effectués</th>
+                    <th>Taux remplissage moyen</th>
+                    <th>Temps attente total</th>
                     <th>Historique (départ → retour)</th>
                 </tr>
                 </thead>
@@ -233,6 +246,8 @@
                         <td><%= v != null ? v.getId() : "-" %></td>
                         <td><%= v != null && v.getReference() != null ? v.getReference() : "-" %></td>
                         <td><%= suivi.getNombreTrajets() != null ? suivi.getNombreTrajets() : 0 %></td>
+                        <td><%= suivi.getTauxRemplissageMoyen() != null ? suivi.getTauxRemplissageMoyen() : 0 %>%</td>
+                        <td><%= suivi.getTempsAttenteUtiliseMinutes() != null ? suivi.getTempsAttenteUtiliseMinutes() : 0 %> min</td>
                         <td>
                             <% if (suivi.getHistoriqueTrajets() != null && !suivi.getHistoriqueTrajets().isEmpty()) {
                                 for (PlanningVehiculeTour t : suivi.getHistoriqueTrajets()) { %>
@@ -240,6 +255,9 @@
                                     <%= t.getHeureDepart() != null ? dtf.format(t.getHeureDepart()) : "-" %>
                                     →
                                     <%= t.getHeureRetour() != null ? dtf.format(t.getHeureRetour()) : "-" %>
+                                    (remplissage: <%= t.getTauxRemplissage() != null ? t.getTauxRemplissage() : 0 %>%,
+                                    attente: <%= t.getTempsAttenteUtiliseMinutes() != null ? t.getTempsAttenteUtiliseMinutes() : 0 %> min,
+                                    décision: <%= t.getDecisionDepart() != null ? t.getDecisionDepart() : "-" %>)
                                     <br>
                             <%  }
                                } else { %>
@@ -249,7 +267,71 @@
                     </tr>
                 <%  }
                    } else { %>
-                    <tr><td colspan="4">Aucune donnée de suivi.</td></tr>
+                    <tr><td colspan="6">Aucune donnée de suivi.</td></tr>
+                <% } %>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Réservations totalement assignées</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Réservation</th>
+                    <th>Client</th>
+                    <th>Passagers initiaux</th>
+                    <th>Assignés</th>
+                    <th>Restants</th>
+                    <th>Statut</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% if (totalementAssignees != null && !totalementAssignees.isEmpty()) {
+                    for (PlanningReservation reservation : totalementAssignees) { %>
+                    <tr>
+                        <td>#<%= reservation.getId() %></td>
+                        <td><%= reservation.getClientId() %></td>
+                        <td><%= reservation.getPassagersInitiaux() %></td>
+                        <td><%= reservation.getPassagersAssignes() %></td>
+                        <td><%= reservation.getPassagersRestants() %></td>
+                        <td><%= reservation.getStatutAssignation() %></td>
+                    </tr>
+                <%  }
+                   } else { %>
+                    <tr><td colspan="6">Aucune réservation totalement assignée.</td></tr>
+                <% } %>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>Réservations partiellement assignées</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Réservation</th>
+                    <th>Client</th>
+                    <th>Passagers initiaux</th>
+                    <th>Assignés</th>
+                    <th>Restants</th>
+                    <th>Statut</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% if (partiellementAssignees != null && !partiellementAssignees.isEmpty()) {
+                    for (PlanningReservation reservation : partiellementAssignees) { %>
+                    <tr>
+                        <td>#<%= reservation.getId() %></td>
+                        <td><%= reservation.getClientId() %></td>
+                        <td><%= reservation.getPassagersInitiaux() %></td>
+                        <td><%= reservation.getPassagersAssignes() %></td>
+                        <td><%= reservation.getPassagersRestants() %></td>
+                        <td><%= reservation.getStatutAssignation() %></td>
+                    </tr>
+                <%  }
+                   } else { %>
+                    <tr><td colspan="6">Aucune réservation partiellement assignée.</td></tr>
                 <% } %>
                 </tbody>
             </table>
@@ -264,7 +346,9 @@
                     <th>Groupe</th>
                     <th>Vol</th>
                     <th>Client</th>
-                    <th>Passagers</th>
+                    <th>Passagers initiaux</th>
+                    <th>Assignés</th>
+                    <th>Restants</th>
                     <th>Heure arrivée</th>
                     <th>Lieu</th>
                     <th>Raison</th>
@@ -278,15 +362,17 @@
                         <td><%= reservation.getGroupReference() != null ? reservation.getGroupReference() : "-" %></td>
                         <td><%= reservation.getVolReference() != null ? reservation.getVolReference() : "-" %></td>
                         <td><%= reservation.getClientId() %></td>
-                        <td><%= reservation.getNombrePassager() %></td>
+                        <td><%= reservation.getPassagersInitiaux() != null ? reservation.getPassagersInitiaux() : reservation.getNombrePassager() %></td>
+                        <td><%= reservation.getPassagersAssignes() != null ? reservation.getPassagersAssignes() : 0 %></td>
+                        <td><%= reservation.getPassagersRestants() != null ? reservation.getPassagersRestants() : reservation.getNombrePassager() %></td>
                         <td><%= reservation.getDateHeureArrivee() != null ? dtf.format(reservation.getDateHeureArrivee()) : "-" %></td>
                         <td><%= reservation.getLieuCode() %> - <%= reservation.getLieuLibelle() %></td>
-                        <td>Aucun véhicule avec capacité suffisante</td>
+                        <td>Capacité insuffisante ou attente non pertinente</td>
                     </tr>
                 <%  }
                    } else { %>
                     <tr>
-                        <td colspan="8">Aucune réservation non assignée.</td>
+                        <td colspan="10">Aucune réservation non assignée.</td>
                     </tr>
                 <% } %>
                 </tbody>

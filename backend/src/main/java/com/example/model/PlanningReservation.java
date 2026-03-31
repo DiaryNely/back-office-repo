@@ -18,6 +18,11 @@ public class PlanningReservation {
     private LocalDateTime dateHeureDepartReelle;
     private Integer idVehicule;
     private String vehiculeReference;
+    private Integer passagersInitiaux;
+    private Integer passagersAssignes;
+    private Integer passagersRestants;
+    private String statutAssignation;
+    private Integer passagersAssignesSurTour;
 
     public Integer getId() {
         return id;
@@ -129,5 +134,45 @@ public class PlanningReservation {
 
     public void setVehiculeReference(String vehiculeReference) {
         this.vehiculeReference = vehiculeReference;
+    }
+
+    public Integer getPassagersInitiaux() {
+        return passagersInitiaux;
+    }
+
+    public void setPassagersInitiaux(Integer passagersInitiaux) {
+        this.passagersInitiaux = passagersInitiaux;
+    }
+
+    public Integer getPassagersAssignes() {
+        return passagersAssignes;
+    }
+
+    public void setPassagersAssignes(Integer passagersAssignes) {
+        this.passagersAssignes = passagersAssignes;
+    }
+
+    public Integer getPassagersRestants() {
+        return passagersRestants;
+    }
+
+    public void setPassagersRestants(Integer passagersRestants) {
+        this.passagersRestants = passagersRestants;
+    }
+
+    public String getStatutAssignation() {
+        return statutAssignation;
+    }
+
+    public void setStatutAssignation(String statutAssignation) {
+        this.statutAssignation = statutAssignation;
+    }
+
+    public Integer getPassagersAssignesSurTour() {
+        return passagersAssignesSurTour;
+    }
+
+    public void setPassagersAssignesSurTour(Integer passagersAssignesSurTour) {
+        this.passagersAssignesSurTour = passagersAssignesSurTour;
     }
 }

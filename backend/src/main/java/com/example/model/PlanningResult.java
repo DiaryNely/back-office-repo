@@ -10,6 +10,8 @@ public class PlanningResult {
     private List<Vehicule> vehiculesDisponibles;
     private List<PlanningVehiculeTour> toursAssignes;
     private List<PlanningReservation> reservationsNonAssignees;
+    private List<PlanningReservation> reservationsTotalementAssignees;
+    private List<PlanningReservation> reservationsPartiellementAssignees;
     private List<PlanningVehiculeSuivi> suiviVehicules;
     private Integer totalReservations;
 
@@ -17,6 +19,8 @@ public class PlanningResult {
         this.vehiculesDisponibles = new ArrayList<>();
         this.toursAssignes = new ArrayList<>();
         this.reservationsNonAssignees = new ArrayList<>();
+        this.reservationsTotalementAssignees = new ArrayList<>();
+        this.reservationsPartiellementAssignees = new ArrayList<>();
         this.suiviVehicules = new ArrayList<>();
         this.totalReservations = 0;
     }
@@ -51,6 +55,22 @@ public class PlanningResult {
 
     public void setReservationsNonAssignees(List<PlanningReservation> reservationsNonAssignees) {
         this.reservationsNonAssignees = reservationsNonAssignees;
+    }
+
+    public List<PlanningReservation> getReservationsTotalementAssignees() {
+        return reservationsTotalementAssignees;
+    }
+
+    public void setReservationsTotalementAssignees(List<PlanningReservation> reservationsTotalementAssignees) {
+        this.reservationsTotalementAssignees = reservationsTotalementAssignees;
+    }
+
+    public List<PlanningReservation> getReservationsPartiellementAssignees() {
+        return reservationsPartiellementAssignees;
+    }
+
+    public void setReservationsPartiellementAssignees(List<PlanningReservation> reservationsPartiellementAssignees) {
+        this.reservationsPartiellementAssignees = reservationsPartiellementAssignees;
     }
 
     public List<PlanningVehiculeSuivi> getSuiviVehicules() {

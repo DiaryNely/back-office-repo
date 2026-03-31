@@ -17,6 +17,9 @@ public class PlanningVehiculeTour {
     private Integer dureeTotaleMinutes;
     private LocalDateTime heureDepart;
     private LocalDateTime heureRetour;
+    private String decisionDepart;
+    private Integer tempsAttenteUtiliseMinutes;
+    private BigDecimal tauxRemplissage;
 
     public PlanningVehiculeTour() {
         this.reservations = new ArrayList<>();
@@ -100,5 +103,29 @@ public class PlanningVehiculeTour {
 
     public void setHeureRetour(LocalDateTime heureRetour) {
         this.heureRetour = heureRetour;
+    }
+
+    public String getDecisionDepart() {
+        return decisionDepart;
+    }
+
+    public void setDecisionDepart(String decisionDepart) {
+        this.decisionDepart = decisionDepart;
+    }
+
+    public Integer getTempsAttenteUtiliseMinutes() {
+        return tempsAttenteUtiliseMinutes;
+    }
+
+    public void setTempsAttenteUtiliseMinutes(Integer tempsAttenteUtiliseMinutes) {
+        this.tempsAttenteUtiliseMinutes = tempsAttenteUtiliseMinutes;
+    }
+
+    public BigDecimal getTauxRemplissage() {
+        return tauxRemplissage;
+    }
+
+    public void setTauxRemplissage(BigDecimal tauxRemplissage) {
+        this.tauxRemplissage = tauxRemplissage;
     }
 }
