@@ -292,9 +292,11 @@ public class PlanningService {
             int remaining,
             Map<Integer, ReservationAssignmentTracker> assignmentTrackers) {
         List<GroupTripSlot> ordered = new ArrayList<>(tripSlots);
+        final int target = remaining;
         ordered.sort(Comparator
-                .comparing((GroupTripSlot slot) -> slot.capacityRemaining, Comparator.reverseOrder())
-                .thenComparing(slot -> slot.tripNumber));
+            .comparingInt((GroupTripSlot slot) -> Math.abs(slot.capacityRemaining - target))
+            .thenComparingInt(slot -> slot.capacityRemaining)
+            .thenComparingInt(slot -> slot.tripNumber));
 
         for (GroupTripSlot slot : ordered) {
             if (remaining <= 0) {
@@ -329,17 +331,17 @@ public class PlanningService {
             LocalDateTime requestedDeparture,
             int dispatchWindowMinutes) {
         return findUnusedVehiclesSorted(vehicleStates, vehiclesUsedForGroup, requestedDeparture, dispatchWindowMinutes)
-                .stream()
-                .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) >= demand)
-                .sorted(Comparator
+            .stream()
+            .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) >= demand)
+            .sorted(Comparator
                 .comparingInt((VehicleState state) -> state.tripsCount)
-                .thenComparing(state -> Objects
+                .thenComparing((VehicleState state) -> Objects
                     .requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
                 .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
                 .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
                 .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)))
-                .findFirst()
-                .orElse(null);
+            .findFirst()
+            .orElse(null);
     }
 
     private List<VehicleState> findUnusedVehiclesSorted(Map<Integer, VehicleState> vehicleStates,
@@ -356,7 +358,7 @@ public class PlanningService {
 
         states.sort(Comparator
             .comparingInt((VehicleState state) -> state.tripsCount)
-            .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
+            .thenComparing((VehicleState state) -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
             .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
             .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
             .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)));
