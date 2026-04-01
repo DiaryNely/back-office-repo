@@ -126,6 +126,8 @@ public class PlanningService {
         result.setToursAssignes(toursAssignes);
         result.setReservationsNonAssignees(nonAssignees);
         result.setTotalReservations(reservations.size());
+
+        logPlanningResult(result);
         return result;
     }
 
@@ -154,6 +156,12 @@ public class PlanningService {
         int dispatchWindowMinutes = parametre.getTempsAttente() != null
                 ? Math.max(0, parametre.getTempsAttente())
                 : 30;
+
+        LocalDateTime dayEnd = LocalDateTime.of(date, END_OF_DAY_TIME);
+        LocalDateTime windowEnd = group.requestedDeparture.plusMinutes(dispatchWindowMinutes);
+        if (windowEnd.isAfter(dayEnd)) {
+            windowEnd = dayEnd;
+        }
 
         List<PlanningReservation> workload = new ArrayList<>();
         if (carryIn != null && !carryIn.isEmpty()) {
@@ -234,6 +242,22 @@ public class PlanningService {
         }
 
         for (GroupTripSlot slot : tripSlots) {
+            if (slot == null) {
+                continue;
+            }
+
+            if (slot.realDeparture == null || windowEnd == null) {
+                continue;
+            }
+
+            boolean isFull = slot.assignedPassengers >= slot.capacityTotal;
+            boolean departsBeforeWindowEnd = slot.realDeparture.isBefore(windowEnd);
+            if (departsBeforeWindowEnd && !isFull) {
+                slot.realDeparture = windowEnd;
+            }
+        }
+
+        for (GroupTripSlot slot : tripSlots) {
             if (slot.assignedPassengers <= 0 || slot.fragments.isEmpty()) {
                 continue;
             }
@@ -308,12 +332,12 @@ public class PlanningService {
                 .stream()
                 .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) >= demand)
                 .sorted(Comparator
-                        .comparing((VehicleState state) -> Objects
-                                .requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
-                        .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
-                        .thenComparing(state -> state.tripsCount)
-                        .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
-                        .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)))
+                .comparingInt((VehicleState state) -> state.tripsCount)
+                .thenComparing(state -> Objects
+                    .requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
+                .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
+                .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
+                .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)))
                 .findFirst()
                 .orElse(null);
     }
@@ -331,12 +355,11 @@ public class PlanningService {
                 .collect(Collectors.toList());
 
         states.sort(Comparator
-                .comparing((VehicleState state) -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0),
-                        Comparator.reverseOrder())
-                .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
-                .thenComparing(state -> state.tripsCount)
-                .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
-                .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)));
+            .comparingInt((VehicleState state) -> state.tripsCount)
+            .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
+            .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
+            .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
+            .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)));
 
         return states;
     }
@@ -654,6 +677,62 @@ public class PlanningService {
         }
 
         return groups;
+    }
+
+    private void logPlanningResult(PlanningResult result) {
+        if (result == null) {
+            System.out.println("[PLANNING] Aucun résultat à journaliser");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[PLANNING] Date=").append(result.getDate())
+                .append(" | Tours=").append(result.getToursAssignes() != null ? result.getToursAssignes().size() : 0)
+                .append(" | Non assignées=")
+                .append(result.getReservationsNonAssignees() != null ? result.getReservationsNonAssignees().size() : 0)
+                .append('\n');
+
+        if (result.getToursAssignes() != null) {
+            for (PlanningVehiculeTour tour : result.getToursAssignes()) {
+                sb.append("  - Vehicule ")
+                        .append(tour.getVehicule() != null ? tour.getVehicule().getReference() : "?")
+                        .append(" | trajet #").append(tour.getNumeroTrajet())
+                        .append(" | pax=").append(tour.getTotalPassagers())
+                        .append(" | depart=").append(tour.getHeureDepart())
+                        .append(" | retour=").append(tour.getHeureRetour())
+                        .append('\n');
+
+                if (tour.getReservations() != null) {
+                    for (PlanningReservation r : tour.getReservations()) {
+                        sb.append("      > resa #")
+                                .append(r.getId())
+                                .append(" | client=").append(r.getClientId())
+                                .append(" | paxAssignee=")
+                                .append(r.getNombrePassagerAssigne() != null ? r.getNombrePassagerAssigne()
+                                        : r.getNombrePassager())
+                                .append("/")
+                                .append(r.getNombrePassagerOriginal() != null ? r.getNombrePassagerOriginal()
+                                        : r.getNombrePassager())
+                                .append(" | lieu=").append(r.getLieuLibelle())
+                                .append(" | ordre=").append(r.getOrdrePassage())
+                                .append('\n');
+                    }
+                }
+            }
+        }
+
+        if (result.getReservationsNonAssignees() != null && !result.getReservationsNonAssignees().isEmpty()) {
+            sb.append("  Non assignées:\n");
+            for (PlanningReservation r : result.getReservationsNonAssignees()) {
+                sb.append("      > resa #").append(r.getId())
+                        .append(" | pax=").append(r.getNombrePassager())
+                        .append(" | lieu=").append(r.getLieuLibelle())
+                        .append(" | raison=").append(r.getRaisonNonAssignation())
+                        .append('\n');
+            }
+        }
+
+        System.out.println(sb.toString());
     }
 
     private void mergeGroup(ReservationGroup target, ReservationGroup source) {
