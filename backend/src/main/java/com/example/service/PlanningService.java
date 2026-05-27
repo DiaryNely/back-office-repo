@@ -32,6 +32,7 @@ public class PlanningService {
 
     private static final String AEROPORT_CODE = "AER";
     private static final String PARTIAL_NON_ASSIGNED_REASON = "Capacité insuffisante après fractionnement";
+    private static final LocalTime END_OF_DAY_TIME = LocalTime.of(23, 59);
 
     private final PlanningDAO planningDAO;
     private final VehiculeDAO vehiculeDAO;
@@ -64,11 +65,16 @@ public class PlanningService {
         Map<String, BigDecimal> distances = planningDAO.getDistanceMap();
 
         Map<Integer, VehicleState> vehicleStates = new HashMap<>();
+        LocalDateTime dayEnd = LocalDateTime.of(date, END_OF_DAY_TIME);
         for (Vehicule vehicule : vehicules) {
             VehicleState state = new VehicleState();
             state.vehicule = vehicule;
             state.tripsCount = 0;
-            state.nextAvailableAt = LocalDateTime.of(date, LocalTime.MIDNIGHT);
+            LocalTime heureDisponibilite = vehicule.getHeureDisponibilite() != null
+                    ? vehicule.getHeureDisponibilite()
+                    : LocalTime.MIDNIGHT;
+            state.dayEnd = dayEnd;
+            state.nextAvailableAt = LocalDateTime.of(date, heureDisponibilite);
             vehicleStates.put(vehicule.getId(), state);
         }
 
@@ -84,12 +90,18 @@ public class PlanningService {
 
         List<PlanningVehiculeTour> toursAssignes = new ArrayList<>();
         List<PlanningReservation> nonAssignees = new ArrayList<>();
+        List<PlanningReservation> carryOver = new ArrayList<>();
 
-        for (ReservationGroup group : groups) {
-            GroupAssignmentOutcome outcome = assignGroupWithSplit(group, vehicleStates, parametre, distances, date,
-                    assignmentTrackers);
+        for (int index = 0; index < groups.size(); index++) {
+            ReservationGroup group = groups.get(index);
+            GroupAssignmentOutcome outcome = assignGroupWithSplit(group, carryOver, vehicleStates, parametre,
+                    distances, date, assignmentTrackers);
             toursAssignes.addAll(outcome.tours);
-            nonAssignees.addAll(outcome.nonAssigned);
+            carryOver = outcome.nonAssigned;
+
+            if (index == groups.size() - 1) {
+                nonAssignees.addAll(carryOver);
+            }
         }
 
         for (PlanningReservation reservation : reservations) {
@@ -114,6 +126,8 @@ public class PlanningService {
         result.setToursAssignes(toursAssignes);
         result.setReservationsNonAssignees(nonAssignees);
         result.setTotalReservations(reservations.size());
+
+        logPlanningResult(result);
         return result;
     }
 
@@ -130,6 +144,7 @@ public class PlanningService {
     }
 
     private GroupAssignmentOutcome assignGroupWithSplit(ReservationGroup group,
+            List<PlanningReservation> carryIn,
             Map<Integer, VehicleState> vehicleStates,
             PlanningParametre parametre,
             Map<String, BigDecimal> distances,
@@ -138,7 +153,23 @@ public class PlanningService {
 
         GroupAssignmentOutcome outcome = new GroupAssignmentOutcome();
 
-        List<ReservationUnit> pendingUnits = group.reservations.stream()
+        int dispatchWindowMinutes = parametre.getTempsAttente() != null
+                ? Math.max(0, parametre.getTempsAttente())
+                : 30;
+
+        LocalDateTime dayEnd = LocalDateTime.of(date, END_OF_DAY_TIME);
+        LocalDateTime windowEnd = group.requestedDeparture.plusMinutes(dispatchWindowMinutes);
+        if (windowEnd.isAfter(dayEnd)) {
+            windowEnd = dayEnd;
+        }
+
+        List<PlanningReservation> workload = new ArrayList<>();
+        if (carryIn != null && !carryIn.isEmpty()) {
+            workload.addAll(carryIn);
+        }
+        workload.addAll(group.reservations);
+
+        List<ReservationUnit> pendingUnits = workload.stream()
                 .map(ReservationUnit::new)
                 .filter(unit -> unit.remainingPassengers > 0)
                 .sorted(Comparator
@@ -164,20 +195,22 @@ public class PlanningService {
             }
 
             VehicleState directVehicle = findUnusedVehicleWithCapacityAtLeast(vehicleStates, vehiclesUsedForGroup,
-                    remaining, group.requestedDeparture);
+                    remaining, group.requestedDeparture, dispatchWindowMinutes);
             if (directVehicle != null) {
                 GroupTripSlot newSlot = openTripSlot(directVehicle, group.requestedDeparture);
-                vehiclesUsedForGroup.add(directVehicle.vehicule.getId());
-                tripSlots.add(newSlot);
-                assignPassengersToTrip(unit, newSlot, remaining, assignmentTrackers);
-                continue;
+                if (newSlot != null) {
+                    vehiclesUsedForGroup.add(directVehicle.vehicule.getId());
+                    tripSlots.add(newSlot);
+                    assignPassengersToTrip(unit, newSlot, remaining, assignmentTrackers);
+                    continue;
+                }
             }
 
             remaining = fillExistingTrips(unit, tripSlots, remaining, assignmentTrackers);
 
             if (remaining > 0) {
                 List<VehicleState> availableVehicles = findUnusedVehiclesSorted(vehicleStates, vehiclesUsedForGroup,
-                        group.requestedDeparture);
+                        group.requestedDeparture, dispatchWindowMinutes);
 
                 for (VehicleState state : availableVehicles) {
                     if (remaining <= 0) {
@@ -185,6 +218,9 @@ public class PlanningService {
                     }
 
                     GroupTripSlot newSlot = openTripSlot(state, group.requestedDeparture);
+                    if (newSlot == null) {
+                        continue;
+                    }
                     vehiclesUsedForGroup.add(state.vehicule.getId());
                     tripSlots.add(newSlot);
 
@@ -206,12 +242,32 @@ public class PlanningService {
         }
 
         for (GroupTripSlot slot : tripSlots) {
+            if (slot == null) {
+                continue;
+            }
+
+            if (slot.realDeparture == null || windowEnd == null) {
+                continue;
+            }
+
+            boolean isFull = slot.assignedPassengers >= slot.capacityTotal;
+            boolean departsBeforeWindowEnd = slot.realDeparture.isBefore(windowEnd);
+            if (departsBeforeWindowEnd && !isFull) {
+                slot.realDeparture = windowEnd;
+            }
+        }
+
+        for (GroupTripSlot slot : tripSlots) {
             if (slot.assignedPassengers <= 0 || slot.fragments.isEmpty()) {
                 continue;
             }
 
             PlanningVehiculeTour tour = calculerTour(slot, group, parametre, distances, date);
-            slot.vehicleState.nextAvailableAt = tour.getHeureRetour();
+            if (tour.getHeureRetour() != null && tour.getHeureRetour().isAfter(slot.vehicleState.dayEnd)) {
+                slot.vehicleState.nextAvailableAt = slot.vehicleState.dayEnd.plusMinutes(1);
+            } else {
+                slot.vehicleState.nextAvailableAt = tour.getHeureRetour();
+            }
 
             for (PlanningReservation fragment : tour.getReservations()) {
                 fragment.setHeureDepartReelle(tour.getHeureDepart());
@@ -236,9 +292,11 @@ public class PlanningService {
             int remaining,
             Map<Integer, ReservationAssignmentTracker> assignmentTrackers) {
         List<GroupTripSlot> ordered = new ArrayList<>(tripSlots);
+        final int target = remaining;
         ordered.sort(Comparator
-                .comparing((GroupTripSlot slot) -> slot.capacityRemaining, Comparator.reverseOrder())
-                .thenComparing(slot -> slot.tripNumber));
+            .comparingInt((GroupTripSlot slot) -> Math.abs(slot.capacityRemaining - target))
+            .thenComparingInt(slot -> slot.capacityRemaining)
+            .thenComparingInt(slot -> slot.tripNumber));
 
         for (GroupTripSlot slot : ordered) {
             if (remaining <= 0) {
@@ -270,34 +328,49 @@ public class PlanningService {
     private VehicleState findUnusedVehicleWithCapacityAtLeast(Map<Integer, VehicleState> vehicleStates,
             Set<Integer> vehiclesUsedForGroup,
             int demand,
-            LocalDateTime requestedDeparture) {
-        return findUnusedVehiclesSorted(vehicleStates, vehiclesUsedForGroup, requestedDeparture).stream()
-                .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) >= demand)
-                .findFirst()
-                .orElse(null);
+            LocalDateTime requestedDeparture,
+            int dispatchWindowMinutes) {
+        return findUnusedVehiclesSorted(vehicleStates, vehiclesUsedForGroup, requestedDeparture, dispatchWindowMinutes)
+            .stream()
+            .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) >= demand)
+            .sorted(Comparator
+                .comparingInt((VehicleState state) -> state.tripsCount)
+                .thenComparing((VehicleState state) -> Objects
+                    .requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
+                .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
+                .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
+                .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)))
+            .findFirst()
+            .orElse(null);
     }
 
     private List<VehicleState> findUnusedVehiclesSorted(Map<Integer, VehicleState> vehicleStates,
             Set<Integer> vehiclesUsedForGroup,
-            LocalDateTime requestedDeparture) {
+            LocalDateTime requestedDeparture,
+            int dispatchWindowMinutes) {
         List<VehicleState> states = vehicleStates.values().stream()
                 .filter(state -> state.vehicule != null && state.vehicule.getId() != null)
                 .filter(state -> !vehiclesUsedForGroup.contains(state.vehicule.getId()))
                 .filter(state -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0) > 0)
+                .filter(state -> !isVehicleUnavailableForDay(state, requestedDeparture))
+                .filter(state -> isWithinDispatchWindow(state, requestedDeparture, dispatchWindowMinutes))
                 .collect(Collectors.toList());
 
         states.sort(Comparator
-                .comparing((VehicleState state) -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), 0),
-                        Comparator.reverseOrder())
-                .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
-                .thenComparing(state -> state.tripsCount)
-                .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
-                .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)));
+            .comparingInt((VehicleState state) -> state.tripsCount)
+            .thenComparing((VehicleState state) -> Objects.requireNonNullElse(state.vehicule.getNombrePlaces(), Integer.MAX_VALUE))
+            .thenComparing(state -> computeRealDeparture(state, requestedDeparture))
+            .thenComparing(state -> "D".equalsIgnoreCase(state.vehicule.getTypeCarburantCode()) ? 0 : 1)
+            .thenComparing(state -> Objects.requireNonNullElse(state.vehicule.getId(), Integer.MAX_VALUE)));
 
         return states;
     }
 
     private GroupTripSlot openTripSlot(VehicleState state, LocalDateTime requestedDeparture) {
+        if (isVehicleUnavailableForDay(state, requestedDeparture)) {
+            return null;
+        }
+
         GroupTripSlot slot = new GroupTripSlot();
         slot.vehicleState = state;
         slot.vehicule = state.vehicule;
@@ -306,6 +379,11 @@ public class PlanningService {
         slot.capacityRemaining = slot.capacityTotal;
         slot.assignedPassengers = 0;
         slot.realDeparture = computeRealDeparture(state, requestedDeparture);
+
+        if (slot.realDeparture.isAfter(state.dayEnd)) {
+            return null;
+        }
+
         state.tripsCount = slot.tripNumber;
         return slot;
     }
@@ -315,6 +393,19 @@ public class PlanningService {
             return state.nextAvailableAt;
         }
         return requestedDeparture;
+    }
+
+    private boolean isVehicleUnavailableForDay(VehicleState state, LocalDateTime requestedDeparture) {
+        LocalDateTime realDeparture = computeRealDeparture(state, requestedDeparture);
+        return realDeparture.isAfter(state.dayEnd);
+    }
+
+    private boolean isWithinDispatchWindow(VehicleState state,
+            LocalDateTime requestedDeparture,
+            int dispatchWindowMinutes) {
+        LocalDateTime realDeparture = computeRealDeparture(state, requestedDeparture);
+        LocalDateTime maxDeparture = requestedDeparture.plusMinutes(Math.max(0, dispatchWindowMinutes));
+        return !realDeparture.isAfter(maxDeparture);
     }
 
     private void assignPassengersToTrip(ReservationUnit unit,
@@ -590,6 +681,62 @@ public class PlanningService {
         return groups;
     }
 
+    private void logPlanningResult(PlanningResult result) {
+        if (result == null) {
+            System.out.println("[PLANNING] Aucun résultat à journaliser");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[PLANNING] Date=").append(result.getDate())
+                .append(" | Tours=").append(result.getToursAssignes() != null ? result.getToursAssignes().size() : 0)
+                .append(" | Non assignées=")
+                .append(result.getReservationsNonAssignees() != null ? result.getReservationsNonAssignees().size() : 0)
+                .append('\n');
+
+        if (result.getToursAssignes() != null) {
+            for (PlanningVehiculeTour tour : result.getToursAssignes()) {
+                sb.append("  - Vehicule ")
+                        .append(tour.getVehicule() != null ? tour.getVehicule().getReference() : "?")
+                        .append(" | trajet #").append(tour.getNumeroTrajet())
+                        .append(" | pax=").append(tour.getTotalPassagers())
+                        .append(" | depart=").append(tour.getHeureDepart())
+                        .append(" | retour=").append(tour.getHeureRetour())
+                        .append('\n');
+
+                if (tour.getReservations() != null) {
+                    for (PlanningReservation r : tour.getReservations()) {
+                        sb.append("      > resa #")
+                                .append(r.getId())
+                                .append(" | client=").append(r.getClientId())
+                                .append(" | paxAssignee=")
+                                .append(r.getNombrePassagerAssigne() != null ? r.getNombrePassagerAssigne()
+                                        : r.getNombrePassager())
+                                .append("/")
+                                .append(r.getNombrePassagerOriginal() != null ? r.getNombrePassagerOriginal()
+                                        : r.getNombrePassager())
+                                .append(" | lieu=").append(r.getLieuLibelle())
+                                .append(" | ordre=").append(r.getOrdrePassage())
+                                .append('\n');
+                    }
+                }
+            }
+        }
+
+        if (result.getReservationsNonAssignees() != null && !result.getReservationsNonAssignees().isEmpty()) {
+            sb.append("  Non assignées:\n");
+            for (PlanningReservation r : result.getReservationsNonAssignees()) {
+                sb.append("      > resa #").append(r.getId())
+                        .append(" | pax=").append(r.getNombrePassager())
+                        .append(" | lieu=").append(r.getLieuLibelle())
+                        .append(" | raison=").append(r.getRaisonNonAssignation())
+                        .append('\n');
+            }
+        }
+
+        System.out.println(sb.toString());
+    }
+
     private void mergeGroup(ReservationGroup target, ReservationGroup source) {
         target.reservations.addAll(source.reservations);
         target.totalPassagers += source.totalPassagers;
@@ -687,6 +834,7 @@ public class PlanningService {
         private Vehicule vehicule;
         private int tripsCount;
         private LocalDateTime nextAvailableAt;
+        private LocalDateTime dayEnd;
     }
 
     private static class RouteComputation {

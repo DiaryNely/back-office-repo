@@ -130,6 +130,9 @@ public class FrontServlet extends HttpServlet {
     private void processRequest(HttpServletRequest req, HttpServletResponse resp)
             throws Exception {
 
+        req.setCharacterEncoding("UTF-8");
+        resp.setCharacterEncoding("UTF-8");
+
         String path = req.getRequestURI().substring(req.getContextPath().length());
         String httpMethod = req.getMethod();
 

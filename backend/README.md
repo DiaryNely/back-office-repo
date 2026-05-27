@@ -46,7 +46,7 @@ Le fichier WAR sera généré dans `target/back-office.war`
 ### Option 1: Tomcat
 1. Copier `target/back-office.war` dans le dossier `webapps` de Tomcat
 2. Démarrer Tomcat
-3. L'application sera accessible sur `http://localhost:8080/back-office/`
+3. L'application sera accessible sur `http://localhost:8081/back-office/`
 
 ### Option 2: Maven Tomcat Plugin
 Ajouter dans le `pom.xml` et exécuter:
@@ -111,19 +111,19 @@ backend/
 
 ### Créer un hôtel (curl)
 ```bash
-curl -X POST http://localhost:8080/back-office/hotels \
+curl -X POST http://localhost:8081/back-office/hotels \
   -d "nom=Grand Hotel&adresse=123 Rue Principale"
 ```
 
 ### Créer une réservation (curl)
 ```bash
-curl -X POST http://localhost:8080/back-office/reservations \
+curl -X POST http://localhost:8081/back-office/reservations \
   -d "clientId=C001&nombrePassager=2&dateHeureArrivee=2026-03-15T14:00&idHotel=1"
 ```
 
 ### Récupérer tous les hôtels (JSON)
 ```bash
-curl http://localhost:8080/back-office/hotels
+curl http://localhost:8081/back-office/hotels
 ```
 
 ## Annotations du Framework Utilisées

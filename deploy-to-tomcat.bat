@@ -5,7 +5,7 @@ echo ================================================
 
 REM Set project variables
 set PROJECT_NAME=back-office
-set TOMCAT_HOME=C:\apache-tomcat-10.1.52
+set TOMCAT_HOME=C:\Users\ranto\Documents\tomcat-10.1.28-windows-x64\apache-tomcat-10.1.28
 set WEBAPPS_DIR=%TOMCAT_HOME%\webapps
 
 REM Build framework first
@@ -67,6 +67,6 @@ call %TOMCAT_HOME%\bin\startup.bat
 
 echo ================================================
 echo Deployment completed successfully!
-echo Access your app at: http://localhost:8080/%PROJECT_NAME%
+echo Access your app at: http://localhost:8081/%PROJECT_NAME%
 echo ================================================
 pause

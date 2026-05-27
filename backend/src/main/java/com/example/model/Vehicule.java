@@ -1,5 +1,7 @@
 package com.example.model;
 
+import java.time.LocalTime;
+
 public class Vehicule {
 
     private Integer id;
@@ -8,6 +10,7 @@ public class Vehicule {
     private Integer typeCarburantId;
     private String typeCarburantCode;
     private String typeCarburantNom;
+    private LocalTime heureDisponibilite;
 
     public Integer getId() {
         return id;
@@ -55,5 +58,13 @@ public class Vehicule {
 
     public void setTypeCarburantNom(String typeCarburantNom) {
         this.typeCarburantNom = typeCarburantNom;
+    }
+
+    public LocalTime getHeureDisponibilite() {
+        return heureDisponibilite;
+    }
+
+    public void setHeureDisponibilite(LocalTime heureDisponibilite) {
+        this.heureDisponibilite = heureDisponibilite;
     }
 }
